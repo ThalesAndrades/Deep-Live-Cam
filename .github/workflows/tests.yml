@@ -1,0 +1,24 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install lightweight test dependencies
+        # Only the deps the unit tests actually need. Heavy GPU/model packages
+        # (onnxruntime-gpu, insightface, torch, tensorflow) are intentionally
+        # excluded: the suite stubs them so it can run on CPU-only CI runners.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest "numpy<2" "opencv-python-headless<4.11" tqdm
+      - name: Run unit tests
+        run: python -m pytest tests/ -v
