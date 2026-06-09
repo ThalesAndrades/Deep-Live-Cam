@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 import importlib
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import ModuleType
 from typing import Any, List, Callable
 
@@ -82,29 +82,28 @@ def set_frame_processors_modules_from_ui(frame_processors: List[str]) -> None:
                  print(f"Warning: Error removing frame processor {frame_processor}: {e}")
 
 def multi_process_frame(source_path: str, temp_frame_paths: List[str], process_frames: Callable[[str, List[str], Any], None], progress: Any = None) -> None:
-    """Process frames in parallel with optimized batching and memory management."""
+    """Process frames in parallel.
+
+    Each frame is submitted as an independent task and results are drained as
+    they complete.  ThreadPoolExecutor already caps concurrency at
+    ``max_workers``, so at most that many frames are ever decoded in memory at
+    once.  The previous per-batch barrier (waiting for a whole batch to finish
+    before submitting the next) added idle time — every batch stalled on its
+    slowest frame — without lowering that memory peak.  Each task reads and
+    writes its own frame file, so ordering does not matter.
+    """
     max_workers = modules.globals.execution_threads
-    
-    # Determine optimal batch size based on available memory and thread count
-    # Process frames in batches to avoid memory overflow
-    batch_size = max(1, min(32, len(temp_frame_paths) // max(1, max_workers)))
-    
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Process in batches to manage memory better
-        for i in range(0, len(temp_frame_paths), batch_size):
-            batch = temp_frame_paths[i:i + batch_size]
-            futures = []
-            
-            for path in batch:
-                future = executor.submit(process_frames, source_path, [path], progress)
-                futures.append(future)
-            
-            # Wait for batch to complete before starting next batch
-            for future in futures:
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"Error processing frame: {e}")
+        futures = [
+            executor.submit(process_frames, source_path, [path], progress)
+            for path in temp_frame_paths
+        ]
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"Error processing frame: {e}")
 
 
 def process_video(source_path: str, frame_paths: list[str], process_frames: Callable[[str, List[str], Any], None]) -> None:
