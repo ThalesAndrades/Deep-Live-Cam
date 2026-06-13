@@ -69,7 +69,7 @@ run.py
      ├─ pre_check()                   # Python 3.9+, ffmpeg presente
      ├─ limit_resources()             # Limites de memória, GPU growth
      ├─ headless?  → start()          # Modo CLI / lote
-     └─ senão      → ui.init().mainloop()   # GUI PySide6
+     └─ senão      → window = ui.init(start, destroy, lang); window.mainloop()  # GUI PySide6
 ```
 
 **Prioridade de execution provider:** `cuda > rocm > coreml > dml > cpu`.
